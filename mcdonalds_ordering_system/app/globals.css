@@ -20,7 +20,7 @@
 }
 
 body {
-  background: var(--background);
+  background: #111827; /* Match bg-gray-900 */
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
