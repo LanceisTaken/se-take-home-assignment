@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface Order {
   id: number;
@@ -14,11 +14,19 @@ interface Bot {
   processingOrderId?: number;
 }
 
+// Interface to track processing timeouts
+interface ProcessingTimeouts {
+  [key: string]: NodeJS.Timeout;
+}
+
 export default function Home() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [nextOrderId, setNextOrderId] = useState(1);
   const [bots, setBots] = useState<Bot[]>([]);
   const [nextBotId, setNextBotId] = useState(1);
+  
+  // Use a ref to track timeouts so we can clear them when needed
+  const timeoutsRef = useRef<ProcessingTimeouts>({});
 
   const addNormalOrder = () => {
     const newOrder: Order = {
@@ -46,6 +54,14 @@ export default function Home() {
     
     // If the bot is processing an order, return that order to PENDING
     if (botToRemove.status === 'PROCESSING' && botToRemove.processingOrderId) {
+      // Clear the timeout for this bot-order combination
+      const timeoutKey = `bot-${botToRemove.id}-order-${botToRemove.processingOrderId}`;
+      if (timeoutsRef.current[timeoutKey]) {
+        clearTimeout(timeoutsRef.current[timeoutKey]);
+        delete timeoutsRef.current[timeoutKey];
+      }
+      
+      // Return the order to PENDING status
       setOrders(prevOrders => 
         prevOrders.map(order => 
           order.id === botToRemove.processingOrderId 
@@ -91,31 +107,57 @@ export default function Home() {
         )
       );
       
+      // Create a timeout key for this bot-order combination
+      const timeoutKey = `bot-${bot.id}-order-${order.id}`;
+      
+      // Clear any existing timeout for this order (shouldn't happen but just in case)
+      if (timeoutsRef.current[timeoutKey]) {
+        clearTimeout(timeoutsRef.current[timeoutKey]);
+      }
+      
       // Process the order (takes 10 seconds)
-      setTimeout(() => {
-        // Check if bot still exists and is still processing this order
-        if (bots.some(b => b.id === bot.id)) {
-          // Update order to complete
-          setOrders(prevOrders => 
-            prevOrders.map(o => 
-              o.id === order.id 
-                ? { ...o, status: 'COMPLETE', botId: undefined } 
-                : o
-            )
-          );
+      timeoutsRef.current[timeoutKey] = setTimeout(() => {
+        // Validity check: ensure the bot still exists and is still processing this order
+        setBots(currentBots => {
+          // Find the current state of the bot
+          const currentBot = currentBots.find(b => b.id === bot.id);
           
-          // Update bot to idle
-          setBots(prevBots => 
-            prevBots.map(b => 
+          // Only update if the bot exists and is still processing this order
+          if (currentBot && currentBot.status === 'PROCESSING' && currentBot.processingOrderId === order.id) {
+            // Update the order to complete
+            setOrders(currentOrders => 
+              currentOrders.map(o => 
+                o.id === order.id && o.status === 'PROCESSING' && o.botId === bot.id
+                  ? { ...o, status: 'COMPLETE', botId: undefined } 
+                  : o
+              )
+            );
+            
+            // Return updated bots array with this bot set to IDLE
+            return currentBots.map(b => 
               b.id === bot.id 
                 ? { ...b, status: 'IDLE', processingOrderId: undefined } 
                 : b
-            )
-          );
-        }
+            );
+          }
+          
+          // If conditions aren't met, return bots unchanged
+          return currentBots;
+        });
+        
+        // Remove the timeout reference
+        delete timeoutsRef.current[timeoutKey];
       }, 10000); // 10 seconds
     }
   }, [orders, bots]);
+
+  // Clean up timeouts when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear all timeouts when component unmounts
+      Object.values(timeoutsRef.current).forEach(clearTimeout);
+    };
+  }, []);
 
   const pendingOrders = orders.filter(order => order.status === 'PENDING');
   const processingOrders = orders.filter(order => order.status === 'PROCESSING');
