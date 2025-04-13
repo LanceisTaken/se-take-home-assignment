@@ -380,8 +380,10 @@ export default function Home() {
   const completeOrders = orders.filter(order => order.status === 'COMPLETE');
 
   // Toggle between Manager and Customer views
-  const toggleView = () => {
-    setViewMode(current => current === 'MANAGER' ? 'CUSTOMER' : 'MANAGER');
+  const toggleView = (mode: ViewMode) => {
+    if (viewMode !== mode) {
+      setViewMode(mode);
+    }
   };
 
   return (
@@ -443,22 +445,26 @@ export default function Home() {
         <h1 className="text-3xl font-bold text-yellow-400">McDonald's Order System</h1>
         <div className="flex space-x-2">
           <button
-            onClick={toggleView}
+            onClick={() => toggleView('MANAGER')}
             className={`px-4 py-2 rounded-lg transition-all ${
               viewMode === 'MANAGER' 
-                ? 'bg-red-600 text-white'
+                ? 'bg-red-600 text-white cursor-default opacity-90'
                 : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
             }`}
+            disabled={viewMode === 'MANAGER'}
+            aria-pressed={viewMode === 'MANAGER'}
           >
             Manager
           </button>
           <button
-            onClick={toggleView}
+            onClick={() => toggleView('CUSTOMER')}
             className={`px-4 py-2 rounded-lg transition-all ${
               viewMode === 'CUSTOMER' 
-                ? 'bg-yellow-500 text-black'
+                ? 'bg-yellow-500 text-black cursor-default opacity-90'
                 : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
             }`}
+            disabled={viewMode === 'CUSTOMER'}
+            aria-pressed={viewMode === 'CUSTOMER'}
           >
             Customer
           </button>
