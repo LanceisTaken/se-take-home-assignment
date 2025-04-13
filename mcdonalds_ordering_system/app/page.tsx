@@ -379,12 +379,20 @@ export default function Home() {
           
           // Only update if the bot exists and is still processing this order
           if (currentBot && currentBot.status === 'PROCESSING' && currentBot.processingOrderId === order.id) {
-            // Play complete sound
-            playSound(completeAudioRef);
+            // We'll play the complete sound here, but check muted state at play time
+            // NOT using closure which would capture the old muted state
             
             // Update the order to complete
-            setOrders(currentOrders => 
-              currentOrders.map(o => 
+            setOrders(currentOrders => {
+              // Play complete sound - checking muted state at actual play time
+              if (!muted && completeAudioRef.current) {
+                completeAudioRef.current.currentTime = 0;
+                completeAudioRef.current.play().catch(err => {
+                  console.error("Error playing completion sound:", err);
+                });
+              }
+              
+              return currentOrders.map(o => 
                 o.id === order.id && o.status === 'PROCESSING' && o.botId === bot.id
                   ? { 
                       ...o, 
@@ -395,8 +403,8 @@ export default function Home() {
                       animation: 'complete'
                     } 
                   : o
-              )
-            );
+              );
+            });
             
             // Return updated bots array with this bot set to IDLE
             return currentBots.map(b => 
@@ -414,7 +422,7 @@ export default function Home() {
         delete timeoutsRef.current[timeoutKey];
       }, 10000); // 10 seconds
     }
-  }, [orders, bots]);
+  }, [orders, bots, muted]); // Add muted to dependencies
 
   // Clean up timeouts when component unmounts
   useEffect(() => {
