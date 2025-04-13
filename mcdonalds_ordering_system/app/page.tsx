@@ -9,6 +9,7 @@ interface Order {
   isVIP: boolean; // Flag to identify VIP orders
   progress?: number; // Cooking progress (0-100)
   startTime?: number; // When the order started processing
+  animation?: string; // Animation state for transitions
 }
 
 interface Bot {
@@ -27,9 +28,50 @@ export default function Home() {
   const [nextOrderId, setNextOrderId] = useState(1);
   const [bots, setBots] = useState<Bot[]>([]);
   const [nextBotId, setNextBotId] = useState(1);
+  const [muted, setMuted] = useState(false);
   
   // Use a ref to track timeouts so we can clear them when needed
   const timeoutsRef = useRef<ProcessingTimeouts>({});
+  // Reference to audio elements
+  const completeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const newOrderAudioRef = useRef<HTMLAudioElement | null>(null);
+  const processingAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Create audio elements on component mount
+  useEffect(() => {
+    completeAudioRef.current = new Audio('/complete.mp3');
+    newOrderAudioRef.current = new Audio('/new-order.mp3');
+    processingAudioRef.current = new Audio('/processing.mp3');
+    
+    return () => {
+      // Cleanup audio on unmount
+      if (completeAudioRef.current) {
+        completeAudioRef.current.pause();
+      }
+      if (newOrderAudioRef.current) {
+        newOrderAudioRef.current.pause();
+      }
+      if (processingAudioRef.current) {
+        processingAudioRef.current.pause();
+      }
+    };
+  }, []);
+
+  // Play sound if not muted
+  const playSound = (audioRef: React.RefObject<HTMLAudioElement | null>) => {
+    if (muted || !audioRef.current) return;
+    
+    // Reset the audio to beginning and play
+    audioRef.current.currentTime = 0;
+    audioRef.current.play().catch(err => {
+      console.error("Error playing sound:", err);
+    });
+  };
+
+  // Toggle mute state
+  const toggleMute = () => {
+    setMuted(prev => !prev);
+  };
 
   // Update progress for orders that are processing
   useEffect(() => {
@@ -54,21 +96,45 @@ export default function Home() {
     return () => clearInterval(intervalId);
   }, [orders]);
 
+  // Add animation to newly created or updated orders
+  const addAnimationToOrder = (order: Order, animationType: string): Order => {
+    return { ...order, animation: animationType };
+  };
+
+  // Clear animation after it completes
+  useEffect(() => {
+    const animatedOrders = orders.filter(order => order.animation);
+    if (animatedOrders.length === 0) return;
+    
+    const timeoutId = setTimeout(() => {
+      setOrders(currentOrders => 
+        currentOrders.map(order => order.animation ? { ...order, animation: undefined } : order)
+      );
+    }, 600); // Match this with the CSS animation duration
+    
+    return () => clearTimeout(timeoutId);
+  }, [orders]);
+
   const addNormalOrder = () => {
     const newOrder: Order = {
       id: nextOrderId,
       status: 'PENDING',
-      isVIP: false
+      isVIP: false,
+      animation: 'new'
     };
     setOrders(prevOrders => [...prevOrders, newOrder]);
     setNextOrderId(prevId => prevId + 1);
+    
+    // Play new order sound
+    playSound(newOrderAudioRef);
   };
 
   const addVIPOrder = () => {
     const newOrder: Order = {
       id: nextOrderId,
       status: 'PENDING',
-      isVIP: true
+      isVIP: true,
+      animation: 'new'
     };
     
     // Insert the VIP order after all existing VIP orders but before normal orders
@@ -110,6 +176,9 @@ export default function Home() {
     });
     
     setNextOrderId(prevId => prevId + 1);
+    
+    // Play VIP order sound
+    playSound(newOrderAudioRef);
   };
 
   const cancelOrder = (orderId: number) => {
@@ -137,8 +206,20 @@ export default function Home() {
       );
     }
     
-    // Remove the order from the orders list
-    setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+    // Add a "removing" animation to the order being cancelled
+    setOrders(prevOrders => 
+      prevOrders.map(order => 
+        order.id === orderId 
+          ? { ...order, animation: 'removing' } 
+          : order
+      )
+    );
+    
+    // Actually remove the order after animation completes
+    setTimeout(() => {
+      // Remove the order from the orders list
+      setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+    }, 300);
   };
 
   const addBot = () => {
@@ -178,13 +259,14 @@ export default function Home() {
           o => o.id !== botToRemove.processingOrderId
         );
         
-        // Reset progress and start time
+        // Reset progress and start time, add animation
         const returnedOrder = { 
           ...orderToReturn, 
           status: 'PENDING' as const, 
           botId: undefined, 
           progress: undefined, 
-          startTime: undefined 
+          startTime: undefined,
+          animation: 'return-to-pending'
         };
         
         // Find where to insert the returned order based on VIP status
@@ -270,11 +352,15 @@ export default function Home() {
                 status: 'PROCESSING', 
                 botId: bot.id,
                 progress: 0,
-                startTime: Date.now()
+                startTime: Date.now(),
+                animation: 'start-processing'
               } 
             : o
         )
       );
+      
+      // Play processing sound
+      playSound(processingAudioRef);
       
       // Create a timeout key for this bot-order combination
       const timeoutKey = `bot-${bot.id}-order-${order.id}`;
@@ -293,6 +379,9 @@ export default function Home() {
           
           // Only update if the bot exists and is still processing this order
           if (currentBot && currentBot.status === 'PROCESSING' && currentBot.processingOrderId === order.id) {
+            // Play complete sound
+            playSound(completeAudioRef);
+            
             // Update the order to complete
             setOrders(currentOrders => 
               currentOrders.map(o => 
@@ -302,7 +391,8 @@ export default function Home() {
                       status: 'COMPLETE', 
                       botId: undefined,
                       progress: undefined,
-                      startTime: undefined
+                      startTime: undefined,
+                      animation: 'complete'
                     } 
                   : o
               )
@@ -340,24 +430,95 @@ export default function Home() {
 
   return (
     <div className="container mx-auto p-4 font-sans bg-gray-900 min-h-screen text-white">
-      <h1 className="text-3xl font-bold mb-6 text-center text-yellow-400">McDonald's Order System</h1>
+      <style jsx global>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes fadeOut {
+          from { opacity: 1; transform: translateY(0); }
+          to { opacity: 0; transform: translateY(20px); }
+        }
+        
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+        
+        @keyframes slideIn {
+          from { transform: translateX(-100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOut {
+          from { transform: translateX(0); opacity: 1; }
+          to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        @keyframes highlight {
+          0% { background-color: rgba(234, 179, 8, 0.8); }
+          100% { background-color: transparent; }
+        }
+        
+        .order-new {
+          animation: fadeIn 0.5s ease-out;
+        }
+        
+        .order-removing {
+          animation: fadeOut 0.3s ease-in forwards;
+        }
+        
+        .order-complete {
+          animation: pulse 0.6s ease-in-out;
+        }
+        
+        .order-start-processing {
+          animation: slideOut 0.5s ease-in-out;
+        }
+        
+        .order-return-to-pending {
+          animation: slideIn 0.5s ease-in-out;
+        }
+      `}</style>
+
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-yellow-400">McDonald's Order System</h1>
+        <button 
+          onClick={toggleMute} 
+          className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 transition-colors"
+          aria-label={muted ? "Unmute sounds" : "Mute sounds"}
+        >
+          {muted ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clipRule="evenodd" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            </svg>
+          )}
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {/* PENDING Area */}
-        <div className="border border-gray-700 rounded-lg p-6 bg-gray-800 shadow-lg">
+        <div className="border border-gray-700 rounded-lg p-6 bg-gray-800 shadow-lg transition-all duration-300 hover:shadow-xl">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-yellow-400">PENDING Orders</h2>
             <div className="flex gap-2">
               <button
                 onClick={addNormalOrder}
-                className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+                className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
               >
                 New Normal Order
               </button>
               
               <button
                 onClick={addVIPOrder}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
               >
                 New VIP Order
               </button>
@@ -369,14 +530,19 @@ export default function Home() {
           ) : (
             <ul className="text-gray-200 space-y-3">
               {pendingOrders.map(order => (
-                <li key={order.id} className="flex items-center justify-between border-b border-gray-700 pb-2">
+                <li 
+                  key={order.id} 
+                  className={`flex items-center justify-between border-b border-gray-700 pb-2 transition-all ${
+                    order.animation ? `order-${order.animation}` : ''
+                  }`}
+                >
                   <div className="flex items-center">
                     <span className="font-medium">Order #{order.id}</span>
                     {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
                   </div>
                   <button
                     onClick={() => cancelOrder(order.id)}
-                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded"
+                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded transition-colors"
                     aria-label={`Cancel order ${order.id}`}
                   >
                     Cancel
@@ -388,14 +554,19 @@ export default function Home() {
         </div>
 
         {/* COMPLETE Area */}
-        <div className="border border-green-700 rounded-lg p-6 bg-green-900 shadow-lg">
+        <div className="border border-green-700 rounded-lg p-6 bg-green-900 shadow-lg transition-all duration-300 hover:shadow-xl">
           <h2 className="text-xl font-semibold mb-4 text-center text-green-300">COMPLETE Orders</h2>
           {completeOrders.length === 0 ? (
             <p className="text-center text-gray-400 italic">No completed orders.</p>
           ) : (
             <ul className="text-green-200 space-y-3">
               {completeOrders.map(order => (
-                <li key={order.id} className="flex justify-between border-b border-green-800 pb-2">
+                <li 
+                  key={order.id} 
+                  className={`flex justify-between border-b border-green-800 pb-2 ${
+                    order.animation ? `order-${order.animation}` : ''
+                  }`}
+                >
                   <div>
                     <span className="font-medium">Order #{order.id}</span>
                     {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
@@ -408,20 +579,20 @@ export default function Home() {
       </div>
 
       {/* Bot Status Area */}
-      <div className="border border-blue-700 rounded-lg p-6 bg-blue-900 shadow-lg">
+      <div className="border border-blue-700 rounded-lg p-6 bg-blue-900 shadow-lg transition-all duration-300 hover:shadow-xl">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-blue-300">Cooking Bots</h2>
           <div className="flex gap-2">
             <button
               onClick={addBot}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+              className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
             >
               + Bot
             </button>
             
             <button
               onClick={removeBot}
-              className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out disabled:opacity-50"
+              className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
               disabled={bots.length === 0}
             >
               - Bot
@@ -436,14 +607,21 @@ export default function Home() {
             {bots.map(bot => (
               <div 
                 key={bot.id} 
-                className={`p-3 rounded-lg text-center ${
-                  bot.status === 'IDLE' ? 'bg-gray-700 border border-gray-600' : 'bg-yellow-800 border border-yellow-600'
+                className={`p-3 rounded-lg text-center transition-all duration-300 transform hover:scale-105 ${
+                  bot.status === 'IDLE' 
+                    ? 'bg-gray-700 border border-gray-600' 
+                    : 'bg-yellow-800 border border-yellow-600 animate-pulse'
                 }`}
               >
                 <div className="font-bold">Bot #{bot.id}</div>
                 <div className={`text-sm ${bot.status === 'IDLE' ? 'text-gray-300' : 'text-yellow-300'}`}>
                   {bot.status === 'IDLE' ? 'IDLE' : `Processing Order #${bot.processingOrderId}`}
                 </div>
+                {bot.status === 'PROCESSING' && (
+                  <div className="mt-1 w-full bg-gray-700 rounded-full h-1 overflow-hidden">
+                    <div className="bg-yellow-400 h-1 animate-pulse"></div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -452,11 +630,11 @@ export default function Home() {
 
       {/* Processing Orders Area with progress bars */}
       {processingOrders.length > 0 && (
-        <div className="mt-6 border border-yellow-700 rounded-lg p-6 bg-yellow-900 shadow-lg">
+        <div className="mt-6 border border-yellow-700 rounded-lg p-6 bg-yellow-900 shadow-lg transition-all duration-300 hover:shadow-xl">
           <h2 className="text-xl font-semibold mb-4 text-center text-yellow-300">Processing Orders</h2>
           <div className="space-y-6">
             {processingOrders.map(order => (
-              <div key={order.id} className="mb-4">
+              <div key={order.id} className={`mb-4 ${order.animation ? `order-${order.animation}` : ''}`}>
                 <div className="flex justify-between mb-1 items-center">
                   <div>
                     <span className="font-medium">Order #{order.id}</span>
@@ -465,19 +643,23 @@ export default function Home() {
                   </div>
                   <button
                     onClick={() => cancelOrder(order.id)}
-                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded"
+                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded transition-colors"
                     aria-label={`Cancel order ${order.id}`}
                   >
                     Cancel
                   </button>
                 </div>
                 
-                {/* Progress bar */}
-                <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+                {/* Progress bar container with animated shine effect */}
+                <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden relative">
+                  {/* Progress bar */}
                   <div 
                     className="bg-yellow-400 h-4 rounded-full transition-all duration-100 ease-linear"
                     style={{ width: `${order.progress || 0}%` }}
-                  />
+                  >
+                    {/* Shine effect */}
+                    <div className="absolute top-0 left-0 w-20 h-full transform -skew-x-30 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shine"></div>
+                  </div>
                 </div>
                 
                 {/* Progress percentage and time left */}
@@ -495,6 +677,11 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Hidden audio elements - we'll use the dynamic Audio API instead */}
+      {/* <audio ref={completeAudioRef} src="/complete.mp3" preload="auto" />
+      <audio ref={newOrderAudioRef} src="/new-order.mp3" preload="auto" />
+      <audio ref={processingAudioRef} src="/processing.mp3" preload="auto" /> */}
     </div>
   );
 }
