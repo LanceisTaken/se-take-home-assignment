@@ -23,7 +23,10 @@ interface ProcessingTimeouts {
   [key: string]: NodeJS.Timeout;
 }
 
+type ViewMode = 'MANAGER' | 'CUSTOMER' | 'VIP_CUSTOMER';
+
 export default function Home() {
+  const [viewMode, setViewMode] = useState<ViewMode>('MANAGER');
   const [orders, setOrders] = useState<Order[]>([]);
   const [nextOrderId, setNextOrderId] = useState(1);
   const [bots, setBots] = useState<Bot[]>([]);
@@ -376,6 +379,31 @@ export default function Home() {
   const processingOrders = orders.filter(order => order.status === 'PROCESSING');
   const completeOrders = orders.filter(order => order.status === 'COMPLETE');
 
+  // Toggle between views
+  const toggleView = (mode: ViewMode) => {
+    if (viewMode !== mode) {
+      setViewMode(mode);
+    }
+  };
+
+  // Filter orders by type for customer views
+  const myOrders = (isVIP: boolean) => {
+    return orders.filter(order => order.isVIP === isVIP);
+  };
+
+  // Get pending and processing orders for the specific customer type
+  const getCustomerPendingOrders = (isVIP: boolean) => {
+    return [
+      ...pendingOrders.filter(order => order.isVIP === isVIP),
+      ...processingOrders.filter(order => order.isVIP === isVIP)
+    ];
+  };
+
+  // Get completed orders for the specific customer type
+  const getCustomerCompleteOrders = (isVIP: boolean) => {
+    return completeOrders.filter(order => order.isVIP === isVIP);
+  };
+
   return (
     <div className="container mx-auto p-4 font-sans bg-gray-900 min-h-screen text-white">
       <style jsx global>{`
@@ -433,181 +461,382 @@ export default function Home() {
 
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-yellow-400">McDonald's Order System</h1>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => toggleView('MANAGER')}
+            className={`px-4 py-2 rounded-lg transition-all ${
+              viewMode === 'MANAGER' 
+                ? 'bg-red-600 text-white cursor-default opacity-90'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+            disabled={viewMode === 'MANAGER'}
+            aria-pressed={viewMode === 'MANAGER'}
+          >
+            Manager
+          </button>
+          <button
+            onClick={() => toggleView('CUSTOMER')}
+            className={`px-4 py-2 rounded-lg transition-all ${
+              viewMode === 'CUSTOMER' 
+                ? 'bg-yellow-500 text-black cursor-default opacity-90'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+            disabled={viewMode === 'CUSTOMER'}
+            aria-pressed={viewMode === 'CUSTOMER'}
+          >
+            Customer
+          </button>
+          <button
+            onClick={() => toggleView('VIP_CUSTOMER')}
+            className={`px-4 py-2 rounded-lg transition-all ${
+              viewMode === 'VIP_CUSTOMER' 
+                ? 'bg-amber-600 text-white cursor-default opacity-90'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+            disabled={viewMode === 'VIP_CUSTOMER'}
+            aria-pressed={viewMode === 'VIP_CUSTOMER'}
+          >
+            VIP Customer
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* PENDING Area */}
-        <div className="border border-gray-700 rounded-lg p-6 bg-gray-800 shadow-lg transition-all duration-300 hover:shadow-xl">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-yellow-400">PENDING Orders</h2>
-            <div className="flex gap-2">
-              <button
-                onClick={addNormalOrder}
-                className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
-              >
-                New Normal Order
-              </button>
+      {/* Customer View */}
+      {viewMode === 'CUSTOMER' && (
+        <div className="space-y-6">
+          {/* Order Button */}
+          <div className="text-center mb-6">
+            <button
+              onClick={addNormalOrder}
+              className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-2 px-6 rounded-lg text-lg shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
+            >
+              Place New Order
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* PENDING Area - Customer View */}
+            <div className="border border-gray-700 rounded-lg p-6 bg-gray-800 shadow-lg transition-all duration-300 hover:shadow-xl">
+              <h2 className="text-xl font-semibold mb-4 text-center text-yellow-400">Your Orders Being Prepared</h2>
               
-              <button
-                onClick={addVIPOrder}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
-              >
-                New VIP Order
-              </button>
+              {getCustomerPendingOrders(false).length === 0 ? (
+                <p className="text-center text-gray-400 italic">No orders being prepared.</p>
+              ) : (
+                <ul className="text-gray-200 space-y-3">
+                  {/* Show both pending and processing orders together for customers */}
+                  {getCustomerPendingOrders(false).map(order => (
+                    <li 
+                      key={order.id} 
+                      className={`flex items-center justify-between border-b border-gray-700 pb-2 transition-all ${
+                        order.animation ? `order-${order.animation}` : ''
+                      }`}
+                    >
+                      <div className="flex items-center w-full">
+                        <span className="font-medium">Order #{order.id}</span>
+                        <div className="ml-auto">
+                          {order.status === 'PROCESSING' ? (
+                            <span className="bg-amber-600 text-white px-2 py-1 rounded-full text-xs">
+                              Being cooked
+                            </span>
+                          ) : (
+                            <span className="bg-gray-600 text-white px-2 py-1 rounded-full text-xs">
+                              In queue
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* COMPLETE Area - Customer View */}
+            <div className="border border-green-700 rounded-lg p-6 bg-green-900 shadow-lg transition-all duration-300 hover:shadow-xl">
+              <h2 className="text-xl font-semibold mb-4 text-center text-green-300">Orders Ready for Pickup</h2>
+              {getCustomerCompleteOrders(false).length === 0 ? (
+                <p className="text-center text-gray-400 italic">No orders ready for pickup.</p>
+              ) : (
+                <ul className="text-green-200 space-y-3">
+                  {getCustomerCompleteOrders(false).map(order => (
+                    <li 
+                      key={order.id} 
+                      className={`flex justify-between border-b border-green-800 pb-2 ${
+                        order.animation ? `order-${order.animation}` : ''
+                      }`}
+                    >
+                      <div>
+                        <span className="font-medium">Order #{order.id}</span>
+                      </div>
+                      <span className="bg-green-600 text-white px-2 py-1 rounded-full text-xs">
+                        Ready!
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
-          
-          {pendingOrders.length === 0 ? (
-            <p className="text-center text-gray-400 italic">No pending orders.</p>
-          ) : (
-            <ul className="text-gray-200 space-y-3">
-              {pendingOrders.map(order => (
-                <li 
-                  key={order.id} 
-                  className={`flex items-center justify-between border-b border-gray-700 pb-2 transition-all ${
-                    order.animation ? `order-${order.animation}` : ''
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <span className="font-medium">Order #{order.id}</span>
-                    {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
-                  </div>
-                  <button
-                    onClick={() => cancelOrder(order.id)}
-                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded transition-colors"
-                    aria-label={`Cancel order ${order.id}`}
-                  >
-                    Cancel
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
+      )}
 
-        {/* COMPLETE Area */}
-        <div className="border border-green-700 rounded-lg p-6 bg-green-900 shadow-lg transition-all duration-300 hover:shadow-xl">
-          <h2 className="text-xl font-semibold mb-4 text-center text-green-300">COMPLETE Orders</h2>
-          {completeOrders.length === 0 ? (
-            <p className="text-center text-gray-400 italic">No completed orders.</p>
-          ) : (
-            <ul className="text-green-200 space-y-3">
-              {completeOrders.map(order => (
-                <li 
-                  key={order.id} 
-                  className={`flex justify-between border-b border-green-800 pb-2 ${
-                    order.animation ? `order-${order.animation}` : ''
-                  }`}
-                >
-                  <div>
-                    <span className="font-medium">Order #{order.id}</span>
-                    {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      {/* Bot Status Area */}
-      <div className="border border-blue-700 rounded-lg p-6 bg-blue-900 shadow-lg transition-all duration-300 hover:shadow-xl">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-blue-300">Cooking Bots</h2>
-          <div className="flex gap-2">
+      {/* VIP Customer View */}
+      {viewMode === 'VIP_CUSTOMER' && (
+        <div className="space-y-6">
+          {/* VIP Order Button */}
+          <div className="text-center mb-6">
             <button
-              onClick={addBot}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
+              onClick={addVIPOrder}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-6 rounded-lg text-lg shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
             >
-              + Bot
+              Place VIP Order
             </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* PENDING Area - VIP Customer View */}
+            <div className="border border-amber-700 rounded-lg p-6 bg-amber-900/30 shadow-lg transition-all duration-300 hover:shadow-xl">
+              <h2 className="text-xl font-semibold mb-4 text-center text-amber-400">Your VIP Orders Being Prepared</h2>
+              
+              {getCustomerPendingOrders(true).length === 0 ? (
+                <p className="text-center text-gray-400 italic">No VIP orders being prepared.</p>
+              ) : (
+                <ul className="text-amber-100 space-y-3">
+                  {/* Show both pending and processing orders together for VIP customers */}
+                  {getCustomerPendingOrders(true).map(order => (
+                    <li 
+                      key={order.id} 
+                      className={`flex items-center justify-between border-b border-amber-700/50 pb-2 transition-all ${
+                        order.animation ? `order-${order.animation}` : ''
+                      }`}
+                    >
+                      <div className="flex items-center w-full">
+                        <span className="font-medium">VIP Order #{order.id}</span>
+                        <div className="ml-auto">
+                          {order.status === 'PROCESSING' ? (
+                            <span className="bg-amber-600 text-white px-2 py-1 rounded-full text-xs">
+                              Being cooked
+                            </span>
+                          ) : (
+                            <span className="bg-amber-700 text-white px-2 py-1 rounded-full text-xs">
+                              In priority queue
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* COMPLETE Area - VIP Customer View */}
+            <div className="border border-green-700 rounded-lg p-6 bg-green-900 shadow-lg transition-all duration-300 hover:shadow-xl">
+              <h2 className="text-xl font-semibold mb-4 text-center text-green-300">VIP Orders Ready for Pickup</h2>
+              {getCustomerCompleteOrders(true).length === 0 ? (
+                <p className="text-center text-gray-400 italic">No VIP orders ready for pickup.</p>
+              ) : (
+                <ul className="text-green-200 space-y-3">
+                  {getCustomerCompleteOrders(true).map(order => (
+                    <li 
+                      key={order.id} 
+                      className={`flex justify-between border-b border-green-800 pb-2 ${
+                        order.animation ? `order-${order.animation}` : ''
+                      }`}
+                    >
+                      <div>
+                        <span className="font-medium">VIP Order #{order.id}</span>
+                      </div>
+                      <span className="bg-green-600 text-white px-2 py-1 rounded-full text-xs">
+                        Ready!
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manager View - Original UI */}
+      {viewMode === 'MANAGER' && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* PENDING Area */}
+            <div className="border border-gray-700 rounded-lg p-6 bg-gray-800 shadow-lg transition-all duration-300 hover:shadow-xl">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-yellow-400">PENDING Orders</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={addNormalOrder}
+                    className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
+                  >
+                    New Normal Order
+                  </button>
+                  
+                  <button
+                    onClick={addVIPOrder}
+                    className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
+                  >
+                    New VIP Order
+                  </button>
+                </div>
+              </div>
+              
+              {pendingOrders.length === 0 ? (
+                <p className="text-center text-gray-400 italic">No pending orders.</p>
+              ) : (
+                <ul className="text-gray-200 space-y-3">
+                  {pendingOrders.map(order => (
+                    <li 
+                      key={order.id} 
+                      className={`flex items-center justify-between border-b border-gray-700 pb-2 transition-all ${
+                        order.animation ? `order-${order.animation}` : ''
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <span className="font-medium">Order #{order.id}</span>
+                        {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                      </div>
+                      <button
+                        onClick={() => cancelOrder(order.id)}
+                        className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded transition-colors"
+                        aria-label={`Cancel order ${order.id}`}
+                      >
+                        Cancel
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* COMPLETE Area */}
+            <div className="border border-green-700 rounded-lg p-6 bg-green-900 shadow-lg transition-all duration-300 hover:shadow-xl">
+              <h2 className="text-xl font-semibold mb-4 text-center text-green-300">COMPLETE Orders</h2>
+              {completeOrders.length === 0 ? (
+                <p className="text-center text-gray-400 italic">No completed orders.</p>
+              ) : (
+                <ul className="text-green-200 space-y-3">
+                  {completeOrders.map(order => (
+                    <li 
+                      key={order.id} 
+                      className={`flex justify-between border-b border-green-800 pb-2 ${
+                        order.animation ? `order-${order.animation}` : ''
+                      }`}
+                    >
+                      <div>
+                        <span className="font-medium">Order #{order.id}</span>
+                        {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* Bot Status Area */}
+          <div className="border border-blue-700 rounded-lg p-6 bg-blue-900 shadow-lg transition-all duration-300 hover:shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-blue-300">Cooking Bots</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={addBot}
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
+                >
+                  + Bot
+                </button>
+                
+                <button
+                  onClick={removeBot}
+                  className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                  disabled={bots.length === 0}
+                >
+                  - Bot
+                </button>
+              </div>
+            </div>
             
-            <button
-              onClick={removeBot}
-              className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
-              disabled={bots.length === 0}
-            >
-              - Bot
-            </button>
-          </div>
-        </div>
-        
-        {bots.length === 0 ? (
-          <p className="text-center text-gray-400 italic">No bots available. Add a bot to start processing orders.</p>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {bots.map(bot => (
-              <div 
-                key={bot.id} 
-                className={`p-3 rounded-lg text-center transition-all duration-300 transform hover:scale-105 ${
-                  bot.status === 'IDLE' 
-                    ? 'bg-gray-700 border border-gray-600' 
-                    : 'bg-yellow-800 border border-yellow-600 animate-pulse'
-                }`}
-              >
-                <div className="font-bold">Bot #{bot.id}</div>
-                <div className={`text-sm ${bot.status === 'IDLE' ? 'text-gray-300' : 'text-yellow-300'}`}>
-                  {bot.status === 'IDLE' ? 'IDLE' : `Processing Order #${bot.processingOrderId}`}
-                </div>
-                {bot.status === 'PROCESSING' && (
-                  <div className="mt-1 w-full bg-gray-700 rounded-full h-1 overflow-hidden">
-                    <div className="bg-yellow-400 h-1 animate-pulse"></div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Processing Orders Area with progress bars */}
-      {processingOrders.length > 0 && (
-        <div className="mt-6 border border-yellow-700 rounded-lg p-6 bg-yellow-900 shadow-lg transition-all duration-300 hover:shadow-xl">
-          <h2 className="text-xl font-semibold mb-4 text-center text-yellow-300">Processing Orders</h2>
-          <div className="space-y-6">
-            {processingOrders.map(order => (
-              <div key={order.id} className={`mb-4 ${order.animation ? `order-${order.animation}` : ''}`}>
-                <div className="flex justify-between mb-1 items-center">
-                  <div>
-                    <span className="font-medium">Order #{order.id}</span>
-                    {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
-                    <span className="ml-2 text-sm text-gray-300">Bot #{order.botId}</span>
-                  </div>
-                  <button
-                    onClick={() => cancelOrder(order.id)}
-                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded transition-colors"
-                    aria-label={`Cancel order ${order.id}`}
-                  >
-                    Cancel
-                  </button>
-                </div>
-                
-                {/* Progress bar container with animated shine effect */}
-                <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden relative">
-                  {/* Progress bar */}
+            {bots.length === 0 ? (
+              <p className="text-center text-gray-400 italic">No bots available. Add a bot to start processing orders.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {bots.map(bot => (
                   <div 
-                    className="bg-yellow-400 h-4 rounded-full transition-all duration-100 ease-linear"
-                    style={{ width: `${order.progress || 0}%` }}
+                    key={bot.id} 
+                    className={`p-3 rounded-lg text-center transition-all duration-300 transform hover:scale-105 ${
+                      bot.status === 'IDLE' 
+                        ? 'bg-gray-700 border border-gray-600' 
+                        : 'bg-yellow-800 border border-yellow-600 animate-pulse'
+                    }`}
                   >
-                    {/* Shine effect */}
-                    <div className="absolute top-0 left-0 w-20 h-full transform -skew-x-30 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shine"></div>
+                    <div className="font-bold">Bot #{bot.id}</div>
+                    <div className={`text-sm ${bot.status === 'IDLE' ? 'text-gray-300' : 'text-yellow-300'}`}>
+                      {bot.status === 'IDLE' ? 'IDLE' : `Processing Order #${bot.processingOrderId}`}
+                    </div>
+                    {bot.status === 'PROCESSING' && (
+                      <div className="mt-1 w-full bg-gray-700 rounded-full h-1 overflow-hidden">
+                        <div className="bg-yellow-400 h-1 animate-pulse"></div>
+                      </div>
+                    )}
                   </div>
-                </div>
-                
-                {/* Progress percentage and time left */}
-                <div className="flex justify-between text-sm mt-1">
-                  <div>
-                    {/* Calculate remaining time in seconds */}
-                    {order.progress !== undefined && 
-                      `${Math.ceil(10 - (order.progress / 10))} seconds left`
-                    }
-                  </div>
-                  <div>{order.progress || 0}% complete</div>
-                </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        </div>
+
+          {/* Processing Orders Area with progress bars */}
+          {processingOrders.length > 0 && (
+            <div className="mt-6 border border-yellow-700 rounded-lg p-6 bg-yellow-900 shadow-lg transition-all duration-300 hover:shadow-xl">
+              <h2 className="text-xl font-semibold mb-4 text-center text-yellow-300">Processing Orders</h2>
+              <div className="space-y-6">
+                {processingOrders.map(order => (
+                  <div key={order.id} className={`mb-4 ${order.animation ? `order-${order.animation}` : ''}`}>
+                    <div className="flex justify-between mb-1 items-center">
+                      <div>
+                        <span className="font-medium">Order #{order.id}</span>
+                        {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                        <span className="ml-2 text-sm text-gray-300">Bot #{order.botId}</span>
+                      </div>
+                      <button
+                        onClick={() => cancelOrder(order.id)}
+                        className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded transition-colors"
+                        aria-label={`Cancel order ${order.id}`}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    
+                    {/* Progress bar container with animated shine effect */}
+                    <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden relative">
+                      {/* Progress bar */}
+                      <div 
+                        className="bg-yellow-400 h-4 rounded-full transition-all duration-100 ease-linear"
+                        style={{ width: `${order.progress || 0}%` }}
+                      >
+                        {/* Shine effect */}
+                        <div className="absolute top-0 left-0 w-20 h-full transform -skew-x-30 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shine"></div>
+                      </div>
+                    </div>
+                    
+                    {/* Progress percentage and time left */}
+                    <div className="flex justify-between text-sm mt-1">
+                      <div>
+                        {/* Calculate remaining time in seconds */}
+                        {order.progress !== undefined && 
+                          `${Math.ceil(10 - (order.progress / 10))} seconds left`
+                        }
+                      </div>
+                      <div>{order.progress || 0}% complete</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
