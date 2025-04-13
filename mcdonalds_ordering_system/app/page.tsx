@@ -28,50 +28,9 @@ export default function Home() {
   const [nextOrderId, setNextOrderId] = useState(1);
   const [bots, setBots] = useState<Bot[]>([]);
   const [nextBotId, setNextBotId] = useState(1);
-  const [muted, setMuted] = useState(false);
   
   // Use a ref to track timeouts so we can clear them when needed
   const timeoutsRef = useRef<ProcessingTimeouts>({});
-  // Reference to audio elements
-  const completeAudioRef = useRef<HTMLAudioElement | null>(null);
-  const newOrderAudioRef = useRef<HTMLAudioElement | null>(null);
-  const processingAudioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Create audio elements on component mount
-  useEffect(() => {
-    completeAudioRef.current = new Audio('/complete.mp3');
-    newOrderAudioRef.current = new Audio('/new-order.mp3');
-    processingAudioRef.current = new Audio('/processing.mp3');
-    
-    return () => {
-      // Cleanup audio on unmount
-      if (completeAudioRef.current) {
-        completeAudioRef.current.pause();
-      }
-      if (newOrderAudioRef.current) {
-        newOrderAudioRef.current.pause();
-      }
-      if (processingAudioRef.current) {
-        processingAudioRef.current.pause();
-      }
-    };
-  }, []);
-
-  // Play sound if not muted
-  const playSound = (audioRef: React.RefObject<HTMLAudioElement | null>) => {
-    if (muted || !audioRef.current) return;
-    
-    // Reset the audio to beginning and play
-    audioRef.current.currentTime = 0;
-    audioRef.current.play().catch(err => {
-      console.error("Error playing sound:", err);
-    });
-  };
-
-  // Toggle mute state
-  const toggleMute = () => {
-    setMuted(prev => !prev);
-  };
 
   // Update progress for orders that are processing
   useEffect(() => {
@@ -124,9 +83,6 @@ export default function Home() {
     };
     setOrders(prevOrders => [...prevOrders, newOrder]);
     setNextOrderId(prevId => prevId + 1);
-    
-    // Play new order sound
-    playSound(newOrderAudioRef);
   };
 
   const addVIPOrder = () => {
@@ -176,9 +132,6 @@ export default function Home() {
     });
     
     setNextOrderId(prevId => prevId + 1);
-    
-    // Play VIP order sound
-    playSound(newOrderAudioRef);
   };
 
   const cancelOrder = (orderId: number) => {
@@ -359,9 +312,6 @@ export default function Home() {
         )
       );
       
-      // Play processing sound
-      playSound(processingAudioRef);
-      
       // Create a timeout key for this bot-order combination
       const timeoutKey = `bot-${bot.id}-order-${order.id}`;
       
@@ -379,20 +329,10 @@ export default function Home() {
           
           // Only update if the bot exists and is still processing this order
           if (currentBot && currentBot.status === 'PROCESSING' && currentBot.processingOrderId === order.id) {
-            // We'll play the complete sound here, but check muted state at play time
-            // NOT using closure which would capture the old muted state
             
             // Update the order to complete
-            setOrders(currentOrders => {
-              // Play complete sound - checking muted state at actual play time
-              if (!muted && completeAudioRef.current) {
-                completeAudioRef.current.currentTime = 0;
-                completeAudioRef.current.play().catch(err => {
-                  console.error("Error playing completion sound:", err);
-                });
-              }
-              
-              return currentOrders.map(o => 
+            setOrders(currentOrders => 
+              currentOrders.map(o => 
                 o.id === order.id && o.status === 'PROCESSING' && o.botId === bot.id
                   ? { 
                       ...o, 
@@ -403,8 +343,8 @@ export default function Home() {
                       animation: 'complete'
                     } 
                   : o
-              );
-            });
+              )
+            );
             
             // Return updated bots array with this bot set to IDLE
             return currentBots.map(b => 
@@ -422,7 +362,7 @@ export default function Home() {
         delete timeoutsRef.current[timeoutKey];
       }, 10000); // 10 seconds
     }
-  }, [orders, bots, muted]); // Add muted to dependencies
+  }, [orders, bots]);
 
   // Clean up timeouts when component unmounts
   useEffect(() => {
@@ -493,22 +433,6 @@ export default function Home() {
 
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-yellow-400">McDonald's Order System</h1>
-        <button 
-          onClick={toggleMute} 
-          className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 transition-colors"
-          aria-label={muted ? "Unmute sounds" : "Mute sounds"}
-        >
-          {muted ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clipRule="evenodd" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-            </svg>
-          )}
-        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -685,11 +609,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      {/* Hidden audio elements - we'll use the dynamic Audio API instead */}
-      {/* <audio ref={completeAudioRef} src="/complete.mp3" preload="auto" />
-      <audio ref={newOrderAudioRef} src="/new-order.mp3" preload="auto" />
-      <audio ref={processingAudioRef} src="/processing.mp3" preload="auto" /> */}
     </div>
   );
 }
