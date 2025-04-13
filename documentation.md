@@ -4,11 +4,12 @@
 1. [Project Overview](#project-overview)
 2. [Requirements and User Stories](#requirements-and-user-stories)
 3. [Technical Architecture](#technical-architecture)
-4. [Core Components](#core-components)
-5. [Key Functions and Logic](#key-functions-and-logic)
-6. [UI Implementation](#ui-implementation)
-7. [Animation and Visual Feedback](#animation-and-visual-feedback)
-8. [Testing and Future Improvements](#testing-and-future-improvements)
+4. [Setup and Running the Application](#setup-and-running-the-application)
+5. [Core Components](#core-components)
+6. [Key Functions and Logic](#key-functions-and-logic)
+7. [UI Implementation](#ui-implementation)
+8. [Animation and Visual Feedback](#animation-and-visual-feedback)
+9. [Testing and Future Improvements](#testing-and-future-improvements)
 
 ## Project Overview
 
@@ -70,6 +71,66 @@ interface Bot {
   status: 'IDLE' | 'PROCESSING';
   processingOrderId?: number;
 }
+```
+
+## Setup and Running the Application
+
+### Prerequisites
+- Node.js (v16.x or higher recommended)
+- npm (v7.x or higher) or Yarn (v1.22.x or higher)
+
+### Installation
+
+1. Clone the repository
+```bash
+git clone https://github.com/yourusername/mcdonalds-ordering-system.git
+cd mcdonalds-ordering-system
+```
+
+2. Install dependencies
+```bash
+# Using npm
+npm install
+
+# Using Yarn
+yarn
+```
+
+### Running the Development Server
+
+To start the development server:
+```bash
+# Using npm
+npm run dev
+
+# Using Yarn
+yarn dev
+```
+
+The application will be available at [http://localhost:3000](http://localhost:3000).
+
+### Building for Production
+
+To create a production build:
+```bash
+# Using npm
+npm run build
+npm start
+
+# Using Yarn
+yarn build
+yarn start
+```
+
+### Project Structure
+```
+mcdonalds_ordering_system/
+├── app/                # Next.js app directory
+│   └── page.tsx        # Main application component
+├── public/             # Static assets
+├── package.json        # Dependencies and scripts
+├── tsconfig.json       # TypeScript configuration
+└── README.md           # Project README
 ```
 
 ## Core Components
