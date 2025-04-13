@@ -342,41 +342,28 @@ export default function Home() {
     <div className="container mx-auto p-4 font-sans bg-gray-900 min-h-screen text-white">
       <h1 className="text-3xl font-bold mb-6 text-center text-yellow-400">McDonald's Order System</h1>
 
-      <div className="mb-6 text-center flex flex-wrap justify-center gap-3">
-        <button
-          onClick={addNormalOrder}
-          className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-2 px-4 rounded-lg text-lg shadow-md transition duration-150 ease-in-out"
-        >
-          New Normal Order
-        </button>
-        
-        <button
-          onClick={addVIPOrder}
-          className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-4 rounded-lg text-lg shadow-md transition duration-150 ease-in-out"
-        >
-          New VIP Order
-        </button>
-        
-        <button
-          onClick={addBot}
-          className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out"
-        >
-          + Bot
-        </button>
-        
-        <button
-          onClick={removeBot}
-          className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out disabled:opacity-50"
-          disabled={bots.length === 0}
-        >
-          - Bot
-        </button>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {/* PENDING Area */}
         <div className="border border-gray-700 rounded-lg p-6 bg-gray-800 shadow-lg">
-          <h2 className="text-xl font-semibold mb-4 text-center text-yellow-400">PENDING Orders</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-yellow-400">PENDING Orders</h2>
+            <div className="flex gap-2">
+              <button
+                onClick={addNormalOrder}
+                className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+              >
+                New Normal Order
+              </button>
+              
+              <button
+                onClick={addVIPOrder}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+              >
+                New VIP Order
+              </button>
+            </div>
+          </div>
+          
           {pendingOrders.length === 0 ? (
             <p className="text-center text-gray-400 italic">No pending orders.</p>
           ) : (
@@ -422,7 +409,26 @@ export default function Home() {
 
       {/* Bot Status Area */}
       <div className="border border-blue-700 rounded-lg p-6 bg-blue-900 shadow-lg">
-        <h2 className="text-xl font-semibold mb-4 text-center text-blue-300">Cooking Bots</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-blue-300">Cooking Bots</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={addBot}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+            >
+              + Bot
+            </button>
+            
+            <button
+              onClick={removeBot}
+              className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out disabled:opacity-50"
+              disabled={bots.length === 0}
+            >
+              - Bot
+            </button>
+          </div>
+        </div>
+        
         {bots.length === 0 ? (
           <p className="text-center text-gray-400 italic">No bots available. Add a bot to start processing orders.</p>
         ) : (
