@@ -480,9 +480,15 @@ export default function Home() {
                   />
                 </div>
                 
-                {/* Progress percentage */}
-                <div className="text-right text-sm mt-1">
-                  {order.progress || 0}% complete
+                {/* Progress percentage and time left */}
+                <div className="flex justify-between text-sm mt-1">
+                  <div>
+                    {/* Calculate remaining time in seconds */}
+                    {order.progress !== undefined && 
+                      `${Math.ceil(10 - (order.progress / 10))} seconds left`
+                    }
+                  </div>
+                  <div>{order.progress || 0}% complete</div>
                 </div>
               </div>
             ))}
