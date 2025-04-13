@@ -23,7 +23,7 @@ interface ProcessingTimeouts {
   [key: string]: NodeJS.Timeout;
 }
 
-type ViewMode = 'MANAGER' | 'CUSTOMER';
+type ViewMode = 'MANAGER' | 'CUSTOMER' | 'VIP_CUSTOMER';
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>('MANAGER');
@@ -379,11 +379,29 @@ export default function Home() {
   const processingOrders = orders.filter(order => order.status === 'PROCESSING');
   const completeOrders = orders.filter(order => order.status === 'COMPLETE');
 
-  // Toggle between Manager and Customer views
+  // Toggle between views
   const toggleView = (mode: ViewMode) => {
     if (viewMode !== mode) {
       setViewMode(mode);
     }
+  };
+
+  // Filter orders by type for customer views
+  const myOrders = (isVIP: boolean) => {
+    return orders.filter(order => order.isVIP === isVIP);
+  };
+
+  // Get pending and processing orders for the specific customer type
+  const getCustomerPendingOrders = (isVIP: boolean) => {
+    return [
+      ...pendingOrders.filter(order => order.isVIP === isVIP),
+      ...processingOrders.filter(order => order.isVIP === isVIP)
+    ];
+  };
+
+  // Get completed orders for the specific customer type
+  const getCustomerCompleteOrders = (isVIP: boolean) => {
+    return completeOrders.filter(order => order.isVIP === isVIP);
   };
 
   return (
@@ -468,6 +486,18 @@ export default function Home() {
           >
             Customer
           </button>
+          <button
+            onClick={() => toggleView('VIP_CUSTOMER')}
+            className={`px-4 py-2 rounded-lg transition-all ${
+              viewMode === 'VIP_CUSTOMER' 
+                ? 'bg-amber-600 text-white cursor-default opacity-90'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+            disabled={viewMode === 'VIP_CUSTOMER'}
+            aria-pressed={viewMode === 'VIP_CUSTOMER'}
+          >
+            VIP Customer
+          </button>
         </div>
       </div>
 
@@ -489,12 +519,12 @@ export default function Home() {
             <div className="border border-gray-700 rounded-lg p-6 bg-gray-800 shadow-lg transition-all duration-300 hover:shadow-xl">
               <h2 className="text-xl font-semibold mb-4 text-center text-yellow-400">Your Orders Being Prepared</h2>
               
-              {pendingOrders.length === 0 && processingOrders.length === 0 ? (
+              {getCustomerPendingOrders(false).length === 0 ? (
                 <p className="text-center text-gray-400 italic">No orders being prepared.</p>
               ) : (
                 <ul className="text-gray-200 space-y-3">
                   {/* Show both pending and processing orders together for customers */}
-                  {[...pendingOrders, ...processingOrders].map(order => (
+                  {getCustomerPendingOrders(false).map(order => (
                     <li 
                       key={order.id} 
                       className={`flex items-center justify-between border-b border-gray-700 pb-2 transition-all ${
@@ -524,11 +554,11 @@ export default function Home() {
             {/* COMPLETE Area - Customer View */}
             <div className="border border-green-700 rounded-lg p-6 bg-green-900 shadow-lg transition-all duration-300 hover:shadow-xl">
               <h2 className="text-xl font-semibold mb-4 text-center text-green-300">Orders Ready for Pickup</h2>
-              {completeOrders.length === 0 ? (
+              {getCustomerCompleteOrders(false).length === 0 ? (
                 <p className="text-center text-gray-400 italic">No orders ready for pickup.</p>
               ) : (
                 <ul className="text-green-200 space-y-3">
-                  {completeOrders.map(order => (
+                  {getCustomerCompleteOrders(false).map(order => (
                     <li 
                       key={order.id} 
                       className={`flex justify-between border-b border-green-800 pb-2 ${
@@ -537,6 +567,85 @@ export default function Home() {
                     >
                       <div>
                         <span className="font-medium">Order #{order.id}</span>
+                      </div>
+                      <span className="bg-green-600 text-white px-2 py-1 rounded-full text-xs">
+                        Ready!
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIP Customer View */}
+      {viewMode === 'VIP_CUSTOMER' && (
+        <div className="space-y-6">
+          {/* VIP Order Button */}
+          <div className="text-center mb-6">
+            <button
+              onClick={addVIPOrder}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-6 rounded-lg text-lg shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
+            >
+              Place VIP Order
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* PENDING Area - VIP Customer View */}
+            <div className="border border-amber-700 rounded-lg p-6 bg-amber-900/30 shadow-lg transition-all duration-300 hover:shadow-xl">
+              <h2 className="text-xl font-semibold mb-4 text-center text-amber-400">Your VIP Orders Being Prepared</h2>
+              
+              {getCustomerPendingOrders(true).length === 0 ? (
+                <p className="text-center text-gray-400 italic">No VIP orders being prepared.</p>
+              ) : (
+                <ul className="text-amber-100 space-y-3">
+                  {/* Show both pending and processing orders together for VIP customers */}
+                  {getCustomerPendingOrders(true).map(order => (
+                    <li 
+                      key={order.id} 
+                      className={`flex items-center justify-between border-b border-amber-700/50 pb-2 transition-all ${
+                        order.animation ? `order-${order.animation}` : ''
+                      }`}
+                    >
+                      <div className="flex items-center w-full">
+                        <span className="font-medium">VIP Order #{order.id}</span>
+                        <div className="ml-auto">
+                          {order.status === 'PROCESSING' ? (
+                            <span className="bg-amber-600 text-white px-2 py-1 rounded-full text-xs">
+                              Being cooked
+                            </span>
+                          ) : (
+                            <span className="bg-amber-700 text-white px-2 py-1 rounded-full text-xs">
+                              In priority queue
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* COMPLETE Area - VIP Customer View */}
+            <div className="border border-green-700 rounded-lg p-6 bg-green-900 shadow-lg transition-all duration-300 hover:shadow-xl">
+              <h2 className="text-xl font-semibold mb-4 text-center text-green-300">VIP Orders Ready for Pickup</h2>
+              {getCustomerCompleteOrders(true).length === 0 ? (
+                <p className="text-center text-gray-400 italic">No VIP orders ready for pickup.</p>
+              ) : (
+                <ul className="text-green-200 space-y-3">
+                  {getCustomerCompleteOrders(true).map(order => (
+                    <li 
+                      key={order.id} 
+                      className={`flex justify-between border-b border-green-800 pb-2 ${
+                        order.animation ? `order-${order.animation}` : ''
+                      }`}
+                    >
+                      <div>
+                        <span className="font-medium">VIP Order #{order.id}</span>
                       </div>
                       <span className="bg-green-600 text-white px-2 py-1 rounded-full text-xs">
                         Ready!
