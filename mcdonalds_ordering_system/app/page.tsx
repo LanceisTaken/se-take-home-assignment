@@ -112,6 +112,35 @@ export default function Home() {
     setNextOrderId(prevId => prevId + 1);
   };
 
+  const cancelOrder = (orderId: number) => {
+    // Find the order to cancel
+    const orderToCancel = orders.find(order => order.id === orderId);
+    
+    if (!orderToCancel) return;
+    
+    // If the order is being processed, we need to free the bot
+    if (orderToCancel.status === 'PROCESSING' && orderToCancel.botId) {
+      // Clear any timeout for this order
+      const timeoutKey = `bot-${orderToCancel.botId}-order-${orderId}`;
+      if (timeoutsRef.current[timeoutKey]) {
+        clearTimeout(timeoutsRef.current[timeoutKey]);
+        delete timeoutsRef.current[timeoutKey];
+      }
+      
+      // Set the bot back to IDLE
+      setBots(prevBots => 
+        prevBots.map(bot => 
+          bot.id === orderToCancel.botId 
+            ? { ...bot, status: 'IDLE', processingOrderId: undefined } 
+            : bot
+        )
+      );
+    }
+    
+    // Remove the order from the orders list
+    setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+  };
+
   const addBot = () => {
     const newBot: Bot = {
       id: nextBotId,
@@ -351,11 +380,20 @@ export default function Home() {
           {pendingOrders.length === 0 ? (
             <p className="text-center text-gray-400 italic">No pending orders.</p>
           ) : (
-            <ul className="list-disc pl-5 text-gray-200 space-y-2">
+            <ul className="text-gray-200 space-y-3">
               {pendingOrders.map(order => (
-                <li key={order.id} className="mb-1">
-                  Order #{order.id}
-                  {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                <li key={order.id} className="flex items-center justify-between border-b border-gray-700 pb-2">
+                  <div className="flex items-center">
+                    <span className="font-medium">Order #{order.id}</span>
+                    {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                  </div>
+                  <button
+                    onClick={() => cancelOrder(order.id)}
+                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded"
+                    aria-label={`Cancel order ${order.id}`}
+                  >
+                    Cancel
+                  </button>
                 </li>
               ))}
             </ul>
@@ -368,11 +406,13 @@ export default function Home() {
           {completeOrders.length === 0 ? (
             <p className="text-center text-gray-400 italic">No completed orders.</p>
           ) : (
-            <ul className="list-disc pl-5 text-green-200 space-y-2">
+            <ul className="text-green-200 space-y-3">
               {completeOrders.map(order => (
-                <li key={order.id} className="mb-1">
-                  Order #{order.id}
-                  {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                <li key={order.id} className="flex justify-between border-b border-green-800 pb-2">
+                  <div>
+                    <span className="font-medium">Order #{order.id}</span>
+                    {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -408,15 +448,22 @@ export default function Home() {
       {processingOrders.length > 0 && (
         <div className="mt-6 border border-yellow-700 rounded-lg p-6 bg-yellow-900 shadow-lg">
           <h2 className="text-xl font-semibold mb-4 text-center text-yellow-300">Processing Orders</h2>
-          <div className="space-y-4">
+          <div className="space-y-6">
             {processingOrders.map(order => (
               <div key={order.id} className="mb-4">
-                <div className="flex justify-between mb-1">
-                  <span>
-                    Order #{order.id}
+                <div className="flex justify-between mb-1 items-center">
+                  <div>
+                    <span className="font-medium">Order #{order.id}</span>
                     {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
-                  </span>
-                  <span>Bot #{order.botId}</span>
+                    <span className="ml-2 text-sm text-gray-300">Bot #{order.botId}</span>
+                  </div>
+                  <button
+                    onClick={() => cancelOrder(order.id)}
+                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded"
+                    aria-label={`Cancel order ${order.id}`}
+                  >
+                    Cancel
+                  </button>
                 </div>
                 
                 {/* Progress bar */}
