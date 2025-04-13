@@ -112,6 +112,35 @@ export default function Home() {
     setNextOrderId(prevId => prevId + 1);
   };
 
+  const cancelOrder = (orderId: number) => {
+    // Find the order to cancel
+    const orderToCancel = orders.find(order => order.id === orderId);
+    
+    if (!orderToCancel) return;
+    
+    // If the order is being processed, we need to free the bot
+    if (orderToCancel.status === 'PROCESSING' && orderToCancel.botId) {
+      // Clear any timeout for this order
+      const timeoutKey = `bot-${orderToCancel.botId}-order-${orderId}`;
+      if (timeoutsRef.current[timeoutKey]) {
+        clearTimeout(timeoutsRef.current[timeoutKey]);
+        delete timeoutsRef.current[timeoutKey];
+      }
+      
+      // Set the bot back to IDLE
+      setBots(prevBots => 
+        prevBots.map(bot => 
+          bot.id === orderToCancel.botId 
+            ? { ...bot, status: 'IDLE', processingOrderId: undefined } 
+            : bot
+        )
+      );
+    }
+    
+    // Remove the order from the orders list
+    setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+  };
+
   const addBot = () => {
     const newBot: Bot = {
       id: nextBotId,
@@ -313,49 +342,45 @@ export default function Home() {
     <div className="container mx-auto p-4 font-sans bg-gray-900 min-h-screen text-white">
       <h1 className="text-3xl font-bold mb-6 text-center text-yellow-400">McDonald's Order System</h1>
 
-      <div className="mb-6 text-center flex flex-wrap justify-center gap-3">
-        <button
-          onClick={addNormalOrder}
-          className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-2 px-4 rounded-lg text-lg shadow-md transition duration-150 ease-in-out"
-        >
-          New Normal Order
-        </button>
-        
-        <button
-          onClick={addVIPOrder}
-          className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-4 rounded-lg text-lg shadow-md transition duration-150 ease-in-out"
-        >
-          New VIP Order
-        </button>
-        
-        <button
-          onClick={addBot}
-          className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out"
-        >
-          + Bot
-        </button>
-        
-        <button
-          onClick={removeBot}
-          className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out disabled:opacity-50"
-          disabled={bots.length === 0}
-        >
-          - Bot
-        </button>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {/* PENDING Area */}
         <div className="border border-gray-700 rounded-lg p-6 bg-gray-800 shadow-lg">
-          <h2 className="text-xl font-semibold mb-4 text-center text-yellow-400">PENDING Orders</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-yellow-400">PENDING Orders</h2>
+            <div className="flex gap-2">
+              <button
+                onClick={addNormalOrder}
+                className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+              >
+                New Normal Order
+              </button>
+              
+              <button
+                onClick={addVIPOrder}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+              >
+                New VIP Order
+              </button>
+            </div>
+          </div>
+          
           {pendingOrders.length === 0 ? (
             <p className="text-center text-gray-400 italic">No pending orders.</p>
           ) : (
-            <ul className="list-disc pl-5 text-gray-200 space-y-2">
+            <ul className="text-gray-200 space-y-3">
               {pendingOrders.map(order => (
-                <li key={order.id} className="mb-1">
-                  Order #{order.id}
-                  {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                <li key={order.id} className="flex items-center justify-between border-b border-gray-700 pb-2">
+                  <div className="flex items-center">
+                    <span className="font-medium">Order #{order.id}</span>
+                    {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                  </div>
+                  <button
+                    onClick={() => cancelOrder(order.id)}
+                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded"
+                    aria-label={`Cancel order ${order.id}`}
+                  >
+                    Cancel
+                  </button>
                 </li>
               ))}
             </ul>
@@ -368,11 +393,13 @@ export default function Home() {
           {completeOrders.length === 0 ? (
             <p className="text-center text-gray-400 italic">No completed orders.</p>
           ) : (
-            <ul className="list-disc pl-5 text-green-200 space-y-2">
+            <ul className="text-green-200 space-y-3">
               {completeOrders.map(order => (
-                <li key={order.id} className="mb-1">
-                  Order #{order.id}
-                  {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                <li key={order.id} className="flex justify-between border-b border-green-800 pb-2">
+                  <div>
+                    <span className="font-medium">Order #{order.id}</span>
+                    {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -382,7 +409,26 @@ export default function Home() {
 
       {/* Bot Status Area */}
       <div className="border border-blue-700 rounded-lg p-6 bg-blue-900 shadow-lg">
-        <h2 className="text-xl font-semibold mb-4 text-center text-blue-300">Cooking Bots</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-blue-300">Cooking Bots</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={addBot}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+            >
+              + Bot
+            </button>
+            
+            <button
+              onClick={removeBot}
+              className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out disabled:opacity-50"
+              disabled={bots.length === 0}
+            >
+              - Bot
+            </button>
+          </div>
+        </div>
+        
         {bots.length === 0 ? (
           <p className="text-center text-gray-400 italic">No bots available. Add a bot to start processing orders.</p>
         ) : (
@@ -408,15 +454,22 @@ export default function Home() {
       {processingOrders.length > 0 && (
         <div className="mt-6 border border-yellow-700 rounded-lg p-6 bg-yellow-900 shadow-lg">
           <h2 className="text-xl font-semibold mb-4 text-center text-yellow-300">Processing Orders</h2>
-          <div className="space-y-4">
+          <div className="space-y-6">
             {processingOrders.map(order => (
               <div key={order.id} className="mb-4">
-                <div className="flex justify-between mb-1">
-                  <span>
-                    Order #{order.id}
+                <div className="flex justify-between mb-1 items-center">
+                  <div>
+                    <span className="font-medium">Order #{order.id}</span>
                     {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
-                  </span>
-                  <span>Bot #{order.botId}</span>
+                    <span className="ml-2 text-sm text-gray-300">Bot #{order.botId}</span>
+                  </div>
+                  <button
+                    onClick={() => cancelOrder(order.id)}
+                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded"
+                    aria-label={`Cancel order ${order.id}`}
+                  >
+                    Cancel
+                  </button>
                 </div>
                 
                 {/* Progress bar */}
@@ -427,9 +480,15 @@ export default function Home() {
                   />
                 </div>
                 
-                {/* Progress percentage */}
-                <div className="text-right text-sm mt-1">
-                  {order.progress || 0}% complete
+                {/* Progress percentage and time left */}
+                <div className="flex justify-between text-sm mt-1">
+                  <div>
+                    {/* Calculate remaining time in seconds */}
+                    {order.progress !== undefined && 
+                      `${Math.ceil(10 - (order.progress / 10))} seconds left`
+                    }
+                  </div>
+                  <div>{order.progress || 0}% complete</div>
                 </div>
               </div>
             ))}
