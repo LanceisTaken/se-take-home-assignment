@@ -9,6 +9,7 @@ interface Order {
   isVIP: boolean; // Flag to identify VIP orders
   progress?: number; // Cooking progress (0-100)
   startTime?: number; // When the order started processing
+  animation?: string; // Animation state for transitions
 }
 
 interface Bot {
@@ -54,11 +55,31 @@ export default function Home() {
     return () => clearInterval(intervalId);
   }, [orders]);
 
+  // Add animation to newly created or updated orders
+  const addAnimationToOrder = (order: Order, animationType: string): Order => {
+    return { ...order, animation: animationType };
+  };
+
+  // Clear animation after it completes
+  useEffect(() => {
+    const animatedOrders = orders.filter(order => order.animation);
+    if (animatedOrders.length === 0) return;
+    
+    const timeoutId = setTimeout(() => {
+      setOrders(currentOrders => 
+        currentOrders.map(order => order.animation ? { ...order, animation: undefined } : order)
+      );
+    }, 600); // Match this with the CSS animation duration
+    
+    return () => clearTimeout(timeoutId);
+  }, [orders]);
+
   const addNormalOrder = () => {
     const newOrder: Order = {
       id: nextOrderId,
       status: 'PENDING',
-      isVIP: false
+      isVIP: false,
+      animation: 'new'
     };
     setOrders(prevOrders => [...prevOrders, newOrder]);
     setNextOrderId(prevId => prevId + 1);
@@ -68,7 +89,8 @@ export default function Home() {
     const newOrder: Order = {
       id: nextOrderId,
       status: 'PENDING',
-      isVIP: true
+      isVIP: true,
+      animation: 'new'
     };
     
     // Insert the VIP order after all existing VIP orders but before normal orders
@@ -137,8 +159,20 @@ export default function Home() {
       );
     }
     
-    // Remove the order from the orders list
-    setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+    // Add a "removing" animation to the order being cancelled
+    setOrders(prevOrders => 
+      prevOrders.map(order => 
+        order.id === orderId 
+          ? { ...order, animation: 'removing' } 
+          : order
+      )
+    );
+    
+    // Actually remove the order after animation completes
+    setTimeout(() => {
+      // Remove the order from the orders list
+      setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+    }, 300);
   };
 
   const addBot = () => {
@@ -178,13 +212,14 @@ export default function Home() {
           o => o.id !== botToRemove.processingOrderId
         );
         
-        // Reset progress and start time
+        // Reset progress and start time, add animation
         const returnedOrder = { 
           ...orderToReturn, 
           status: 'PENDING' as const, 
           botId: undefined, 
           progress: undefined, 
-          startTime: undefined 
+          startTime: undefined,
+          animation: 'return-to-pending'
         };
         
         // Find where to insert the returned order based on VIP status
@@ -270,7 +305,8 @@ export default function Home() {
                 status: 'PROCESSING', 
                 botId: bot.id,
                 progress: 0,
-                startTime: Date.now()
+                startTime: Date.now(),
+                animation: 'start-processing'
               } 
             : o
         )
@@ -293,6 +329,7 @@ export default function Home() {
           
           // Only update if the bot exists and is still processing this order
           if (currentBot && currentBot.status === 'PROCESSING' && currentBot.processingOrderId === order.id) {
+            
             // Update the order to complete
             setOrders(currentOrders => 
               currentOrders.map(o => 
@@ -302,7 +339,8 @@ export default function Home() {
                       status: 'COMPLETE', 
                       botId: undefined,
                       progress: undefined,
-                      startTime: undefined
+                      startTime: undefined,
+                      animation: 'complete'
                     } 
                   : o
               )
@@ -340,24 +378,79 @@ export default function Home() {
 
   return (
     <div className="container mx-auto p-4 font-sans bg-gray-900 min-h-screen text-white">
-      <h1 className="text-3xl font-bold mb-6 text-center text-yellow-400">McDonald's Order System</h1>
+      <style jsx global>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes fadeOut {
+          from { opacity: 1; transform: translateY(0); }
+          to { opacity: 0; transform: translateY(20px); }
+        }
+        
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+        
+        @keyframes slideIn {
+          from { transform: translateX(-100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOut {
+          from { transform: translateX(0); opacity: 1; }
+          to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        @keyframes highlight {
+          0% { background-color: rgba(234, 179, 8, 0.8); }
+          100% { background-color: transparent; }
+        }
+        
+        .order-new {
+          animation: fadeIn 0.5s ease-out;
+        }
+        
+        .order-removing {
+          animation: fadeOut 0.3s ease-in forwards;
+        }
+        
+        .order-complete {
+          animation: pulse 0.6s ease-in-out;
+        }
+        
+        .order-start-processing {
+          animation: slideOut 0.5s ease-in-out;
+        }
+        
+        .order-return-to-pending {
+          animation: slideIn 0.5s ease-in-out;
+        }
+      `}</style>
+
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-yellow-400">McDonald's Order System</h1>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {/* PENDING Area */}
-        <div className="border border-gray-700 rounded-lg p-6 bg-gray-800 shadow-lg">
+        <div className="border border-gray-700 rounded-lg p-6 bg-gray-800 shadow-lg transition-all duration-300 hover:shadow-xl">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-yellow-400">PENDING Orders</h2>
             <div className="flex gap-2">
               <button
                 onClick={addNormalOrder}
-                className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+                className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
               >
                 New Normal Order
               </button>
               
               <button
                 onClick={addVIPOrder}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
               >
                 New VIP Order
               </button>
@@ -369,14 +462,19 @@ export default function Home() {
           ) : (
             <ul className="text-gray-200 space-y-3">
               {pendingOrders.map(order => (
-                <li key={order.id} className="flex items-center justify-between border-b border-gray-700 pb-2">
+                <li 
+                  key={order.id} 
+                  className={`flex items-center justify-between border-b border-gray-700 pb-2 transition-all ${
+                    order.animation ? `order-${order.animation}` : ''
+                  }`}
+                >
                   <div className="flex items-center">
                     <span className="font-medium">Order #{order.id}</span>
                     {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
                   </div>
                   <button
                     onClick={() => cancelOrder(order.id)}
-                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded"
+                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded transition-colors"
                     aria-label={`Cancel order ${order.id}`}
                   >
                     Cancel
@@ -388,14 +486,19 @@ export default function Home() {
         </div>
 
         {/* COMPLETE Area */}
-        <div className="border border-green-700 rounded-lg p-6 bg-green-900 shadow-lg">
+        <div className="border border-green-700 rounded-lg p-6 bg-green-900 shadow-lg transition-all duration-300 hover:shadow-xl">
           <h2 className="text-xl font-semibold mb-4 text-center text-green-300">COMPLETE Orders</h2>
           {completeOrders.length === 0 ? (
             <p className="text-center text-gray-400 italic">No completed orders.</p>
           ) : (
             <ul className="text-green-200 space-y-3">
               {completeOrders.map(order => (
-                <li key={order.id} className="flex justify-between border-b border-green-800 pb-2">
+                <li 
+                  key={order.id} 
+                  className={`flex justify-between border-b border-green-800 pb-2 ${
+                    order.animation ? `order-${order.animation}` : ''
+                  }`}
+                >
                   <div>
                     <span className="font-medium">Order #{order.id}</span>
                     {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
@@ -408,20 +511,20 @@ export default function Home() {
       </div>
 
       {/* Bot Status Area */}
-      <div className="border border-blue-700 rounded-lg p-6 bg-blue-900 shadow-lg">
+      <div className="border border-blue-700 rounded-lg p-6 bg-blue-900 shadow-lg transition-all duration-300 hover:shadow-xl">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-blue-300">Cooking Bots</h2>
           <div className="flex gap-2">
             <button
               onClick={addBot}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out"
+              className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105"
             >
               + Bot
             </button>
             
             <button
               onClick={removeBot}
-              className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition duration-150 ease-in-out disabled:opacity-50"
+              className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded-lg text-sm shadow-md transition-all duration-150 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
               disabled={bots.length === 0}
             >
               - Bot
@@ -436,14 +539,21 @@ export default function Home() {
             {bots.map(bot => (
               <div 
                 key={bot.id} 
-                className={`p-3 rounded-lg text-center ${
-                  bot.status === 'IDLE' ? 'bg-gray-700 border border-gray-600' : 'bg-yellow-800 border border-yellow-600'
+                className={`p-3 rounded-lg text-center transition-all duration-300 transform hover:scale-105 ${
+                  bot.status === 'IDLE' 
+                    ? 'bg-gray-700 border border-gray-600' 
+                    : 'bg-yellow-800 border border-yellow-600 animate-pulse'
                 }`}
               >
                 <div className="font-bold">Bot #{bot.id}</div>
                 <div className={`text-sm ${bot.status === 'IDLE' ? 'text-gray-300' : 'text-yellow-300'}`}>
                   {bot.status === 'IDLE' ? 'IDLE' : `Processing Order #${bot.processingOrderId}`}
                 </div>
+                {bot.status === 'PROCESSING' && (
+                  <div className="mt-1 w-full bg-gray-700 rounded-full h-1 overflow-hidden">
+                    <div className="bg-yellow-400 h-1 animate-pulse"></div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -452,11 +562,11 @@ export default function Home() {
 
       {/* Processing Orders Area with progress bars */}
       {processingOrders.length > 0 && (
-        <div className="mt-6 border border-yellow-700 rounded-lg p-6 bg-yellow-900 shadow-lg">
+        <div className="mt-6 border border-yellow-700 rounded-lg p-6 bg-yellow-900 shadow-lg transition-all duration-300 hover:shadow-xl">
           <h2 className="text-xl font-semibold mb-4 text-center text-yellow-300">Processing Orders</h2>
           <div className="space-y-6">
             {processingOrders.map(order => (
-              <div key={order.id} className="mb-4">
+              <div key={order.id} className={`mb-4 ${order.animation ? `order-${order.animation}` : ''}`}>
                 <div className="flex justify-between mb-1 items-center">
                   <div>
                     <span className="font-medium">Order #{order.id}</span>
@@ -465,19 +575,23 @@ export default function Home() {
                   </div>
                   <button
                     onClick={() => cancelOrder(order.id)}
-                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded"
+                    className="bg-red-500 hover:bg-red-600 text-white text-sm px-2 py-1 rounded transition-colors"
                     aria-label={`Cancel order ${order.id}`}
                   >
                     Cancel
                   </button>
                 </div>
                 
-                {/* Progress bar */}
-                <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+                {/* Progress bar container with animated shine effect */}
+                <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden relative">
+                  {/* Progress bar */}
                   <div 
                     className="bg-yellow-400 h-4 rounded-full transition-all duration-100 ease-linear"
                     style={{ width: `${order.progress || 0}%` }}
-                  />
+                  >
+                    {/* Shine effect */}
+                    <div className="absolute top-0 left-0 w-20 h-full transform -skew-x-30 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shine"></div>
+                  </div>
                 </div>
                 
                 {/* Progress percentage and time left */}
