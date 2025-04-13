@@ -7,6 +7,8 @@ interface Order {
   status: 'PENDING' | 'PROCESSING' | 'COMPLETE';
   botId?: number; // Track which bot is processing this order
   isVIP: boolean; // Flag to identify VIP orders
+  progress?: number; // Cooking progress (0-100)
+  startTime?: number; // When the order started processing
 }
 
 interface Bot {
@@ -28,6 +30,29 @@ export default function Home() {
   
   // Use a ref to track timeouts so we can clear them when needed
   const timeoutsRef = useRef<ProcessingTimeouts>({});
+
+  // Update progress for orders that are processing
+  useEffect(() => {
+    // Only run if there are processing orders
+    const processingOrders = orders.filter(order => order.status === 'PROCESSING');
+    if (processingOrders.length === 0) return;
+    
+    // Setup interval to update progress
+    const intervalId = setInterval(() => {
+      setOrders(currentOrders => 
+        currentOrders.map(order => {
+          if (order.status === 'PROCESSING' && order.startTime) {
+            const elapsedTime = Date.now() - order.startTime;
+            const progress = Math.min(Math.floor((elapsedTime / 10000) * 100), 100);
+            return { ...order, progress };
+          }
+          return order;
+        })
+      );
+    }, 100); // Update every 100ms for smooth animation
+    
+    return () => clearInterval(intervalId);
+  }, [orders]);
 
   const addNormalOrder = () => {
     const newOrder: Order = {
@@ -124,8 +149,17 @@ export default function Home() {
           o => o.id !== botToRemove.processingOrderId
         );
         
+        // Reset progress and start time
+        const returnedOrder = { 
+          ...orderToReturn, 
+          status: 'PENDING' as const, 
+          botId: undefined, 
+          progress: undefined, 
+          startTime: undefined 
+        };
+        
         // Find where to insert the returned order based on VIP status
-        if (orderToReturn.isVIP) {
+        if (returnedOrder.isVIP) {
           // For VIP orders, find the position after last VIP order or at beginning
           const lastVIPIndex = [...updatedOrders]
             .reverse()
@@ -139,16 +173,13 @@ export default function Home() {
             
             if (firstNormalPendingIndex === -1) {
               // No pending orders, just append the returned order
-              return [
-                ...updatedOrders, 
-                { ...orderToReturn, status: 'PENDING', botId: undefined }
-              ];
+              return [...updatedOrders, returnedOrder];
             }
             
             // Insert before first normal order
             return [
               ...updatedOrders.slice(0, firstNormalPendingIndex),
-              { ...orderToReturn, status: 'PENDING', botId: undefined },
+              returnedOrder,
               ...updatedOrders.slice(firstNormalPendingIndex)
             ];
           }
@@ -159,15 +190,12 @@ export default function Home() {
           // Insert after the last VIP order
           return [
             ...updatedOrders.slice(0, insertIndex),
-            { ...orderToReturn, status: 'PENDING', botId: undefined },
+            returnedOrder,
             ...updatedOrders.slice(insertIndex)
           ];
         } else {
           // For normal orders, just append to the end
-          return [
-            ...updatedOrders, 
-            { ...orderToReturn, status: 'PENDING', botId: undefined }
-          ];
+          return [...updatedOrders, returnedOrder];
         }
       });
     }
@@ -204,11 +232,17 @@ export default function Home() {
         )
       );
       
-      // Update order status
+      // Update order status and set start time
       setOrders(prevOrders => 
         prevOrders.map(o => 
           o.id === order.id 
-            ? { ...o, status: 'PROCESSING', botId: bot.id } 
+            ? { 
+                ...o, 
+                status: 'PROCESSING', 
+                botId: bot.id,
+                progress: 0,
+                startTime: Date.now()
+              } 
             : o
         )
       );
@@ -234,7 +268,13 @@ export default function Home() {
             setOrders(currentOrders => 
               currentOrders.map(o => 
                 o.id === order.id && o.status === 'PROCESSING' && o.botId === bot.id
-                  ? { ...o, status: 'COMPLETE', botId: undefined } 
+                  ? { 
+                      ...o, 
+                      status: 'COMPLETE', 
+                      botId: undefined,
+                      progress: undefined,
+                      startTime: undefined
+                    } 
                   : o
               )
             );
@@ -364,19 +404,36 @@ export default function Home() {
         )}
       </div>
 
-      {/* Processing Orders Area (optional, for visibility) */}
+      {/* Processing Orders Area with progress bars */}
       {processingOrders.length > 0 && (
         <div className="mt-6 border border-yellow-700 rounded-lg p-6 bg-yellow-900 shadow-lg">
           <h2 className="text-xl font-semibold mb-4 text-center text-yellow-300">Processing Orders</h2>
-          <ul className="list-disc pl-5 text-yellow-200 space-y-2">
+          <div className="space-y-4">
             {processingOrders.map(order => (
-              <li key={order.id} className="mb-1">
-                Order #{order.id}
-                {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
-                {" - Being processed by Bot #"}{order.botId}
-              </li>
+              <div key={order.id} className="mb-4">
+                <div className="flex justify-between mb-1">
+                  <span>
+                    Order #{order.id}
+                    {order.isVIP && <span className="ml-2 text-amber-400 font-bold">(VIP)</span>}
+                  </span>
+                  <span>Bot #{order.botId}</span>
+                </div>
+                
+                {/* Progress bar */}
+                <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+                  <div 
+                    className="bg-yellow-400 h-4 rounded-full transition-all duration-100 ease-linear"
+                    style={{ width: `${order.progress || 0}%` }}
+                  />
+                </div>
+                
+                {/* Progress percentage */}
+                <div className="text-right text-sm mt-1">
+                  {order.progress || 0}% complete
+                </div>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </div>
